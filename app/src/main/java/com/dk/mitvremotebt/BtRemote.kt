@@ -55,7 +55,6 @@ class BtRemote(private val context: Context) {
         const val CONSUMER_VOICE_SEARCH: Int = 0x0221
 
         val HID_DESCRIPTOR = byteArrayOf(
-            // Report ID 1: Keyboard
             0x05.toByte(), 0x01.toByte(),
             0x09.toByte(), 0x06.toByte(),
             0xA1.toByte(), 0x01.toByte(),
@@ -81,7 +80,6 @@ class BtRemote(private val context: Context) {
             0x81.toByte(), 0x00.toByte(),
             0xC0.toByte(),
 
-            // Report ID 2: Consumer Control
             0x05.toByte(), 0x0C.toByte(),
             0x09.toByte(), 0x01.toByte(),
             0xA1.toByte(), 0x01.toByte(),
@@ -95,7 +93,6 @@ class BtRemote(private val context: Context) {
             0x81.toByte(), 0x00.toByte(),
             0xC0.toByte(),
 
-            // Report ID 3: Relative Mouse
             0x05.toByte(), 0x01.toByte(),
             0x09.toByte(), 0x02.toByte(),
             0xA1.toByte(), 0x01.toByte(),
@@ -389,4 +386,4 @@ class BtRemote(private val context: Context) {
             else -> null
         }
     }
-} // <--- Make sure this final closing brace is present!
+}
