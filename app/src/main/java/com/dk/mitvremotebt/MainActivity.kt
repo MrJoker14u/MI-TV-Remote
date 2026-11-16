@@ -1242,9 +1242,7 @@ fun MoreControlsSection(
         )
 
         Text(
-            text = "First-time setup:
-1. Pair your Mi TV 4A in your phone's Bluetooth settings.
-2. Tap 'Mi TV 4A' at the top and select Connect.",
+            text = "First-time setup:\n1. Pair your Mi TV 4A in your phone's Bluetooth settings.\n2. Tap 'Mi TV 4A' at the top and select Connect.",
             color = TextSecondary,
             fontSize = 13.sp,
             lineHeight = 19.sp
@@ -1252,7 +1250,7 @@ fun MoreControlsSection(
 
         Button(
             onClick = {
-                haptic()
+                onHaptic()
                 onOpenBtSettings()
             },
             modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -1270,7 +1268,7 @@ fun MoreControlsSection(
         ) {
             OutlinedButton(
                 onClick = {
-                    haptic()
+                    onHaptic()
                     btRemote.sendKey(BtRemote.KEY_ESCAPE)
                 },
                 modifier = Modifier.weight(1f),
@@ -1280,7 +1278,7 @@ fun MoreControlsSection(
             }
             OutlinedButton(
                 onClick = {
-                    haptic()
+                    onHaptic()
                     btRemote.sendKey(BtRemote.KEY_TAB)
                 },
                 modifier = Modifier.weight(1f),
