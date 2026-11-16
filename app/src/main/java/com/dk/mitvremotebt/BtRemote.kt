@@ -9,8 +9,6 @@ import android.bluetooth.BluetoothHidDeviceAppSdpSettings
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.content.Context
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,12 +21,11 @@ class BtRemote(private val context: Context) {
     companion object {
         private const val TAG = "BtRemote"
 
-        // Report IDs
         const val ID_KEYBOARD: Byte = 1
         const val ID_CONSUMER: Byte = 2
         const val ID_MOUSE: Byte = 3
 
-        // Standard USB HID Keyboard Usage IDs (Page 0x07)
+        const val KEY_A: Byte = 0x04
         const val KEY_ENTER: Byte = 0x28
         const val KEY_ESCAPE: Byte = 0x29
         const val KEY_BACKSPACE: Byte = 0x2A
@@ -39,12 +36,12 @@ class BtRemote(private val context: Context) {
         const val KEY_DOWN: Byte = 0x51
         const val KEY_UP: Byte = 0x52
 
-        // Standard USB HID Consumer Control Usage IDs (Page 0x0C) - 16-bit Little Endian
+        const val MOD_LEFT_CTRL: Byte = 0x01
+        const val MOD_LEFT_SHIFT: Byte = 0x02
+
         const val CONSUMER_POWER: Int = 0x0030
         const val CONSUMER_PLAY_PAUSE: Int = 0x00CD
         const val CONSUMER_STOP: Int = 0x00B7
-        const val CONSUMER_NEXT_TRACK: Int = 0x00B5
-        const val CONSUMER_PREV_TRACK: Int = 0x00B6
         const val CONSUMER_REWIND: Int = 0x00B4
         const val CONSUMER_FAST_FORWARD: Int = 0x00B3
         const val CONSUMER_MUTE: Int = 0x00E2
@@ -57,76 +54,75 @@ class BtRemote(private val context: Context) {
         const val CONSUMER_MENU: Int = 0x0040
         const val CONSUMER_VOICE_SEARCH: Int = 0x0221
 
-        // Combined HID Descriptor: Keyboard (ID 1) + Consumer Control (ID 2) + Mouse/Touchpad (ID 3)
         val HID_DESCRIPTOR = byteArrayOf(
-            // --- Report ID 1: Standard Keyboard ---
-            0x05.toByte(), 0x01.toByte(), // Usage Page (Generic Desktop)
-            0x09.toByte(), 0x06.toByte(), // Usage (Keyboard)
-            0xA1.toByte(), 0x01.toByte(), // Collection (Application)
-            0x85.toByte(), ID_KEYBOARD,   //   Report ID (1)
-            0x05.toByte(), 0x07.toByte(), //   Usage Page (Key Codes)
-            0x19.toByte(), 0xE0.toByte(), //   Usage Minimum (224 - Left Control)
-            0x29.toByte(), 0xE7.toByte(), //   Usage Maximum (231 - Right GUI)
-            0x15.toByte(), 0x00.toByte(), //   Logical Minimum (0)
-            0x25.toByte(), 0x01.toByte(), //   Logical Maximum (1)
-            0x75.toByte(), 0x01.toByte(), //   Report Size (1)
-            0x95.toByte(), 0x08.toByte(), //   Report Count (8)
-            0x81.toByte(), 0x02.toByte(), //   Input (Data, Variable, Absolute) - Modifier byte
-            0x95.toByte(), 0x01.toByte(), //   Report Count (1)
-            0x75.toByte(), 0x08.toByte(), //   Report Size (8)
-            0x81.toByte(), 0x01.toByte(), //   Input (Constant) - Reserved byte
-            0x95.toByte(), 0x06.toByte(), //   Report Count (6)
-            0x75.toByte(), 0x08.toByte(), //   Report Size (8)
-            0x15.toByte(), 0x00.toByte(), //   Logical Minimum (0)
-            0x25.toByte(), 0x65.toByte(), //   Logical Maximum (101)
-            0x05.toByte(), 0x07.toByte(), //   Usage Page (Key Codes)
-            0x19.toByte(), 0x00.toByte(), //   Usage Minimum (0)
-            0x29.toByte(), 0x65.toByte(), //   Usage Maximum (101)
-            0x81.toByte(), 0x00.toByte(), //   Input (Data, Array) - Key arrays (6 bytes)
-            0xC0.toByte(),                // End Collection
+            // Report ID 1: Keyboard
+            0x05.toByte(), 0x01.toByte(),
+            0x09.toByte(), 0x06.toByte(),
+            0xA1.toByte(), 0x01.toByte(),
+            0x85.toByte(), ID_KEYBOARD,
+            0x05.toByte(), 0x07.toByte(),
+            0x19.toByte(), 0xE0.toByte(),
+            0x29.toByte(), 0xE7.toByte(),
+            0x15.toByte(), 0x00.toByte(),
+            0x25.toByte(), 0x01.toByte(),
+            0x75.toByte(), 0x01.toByte(),
+            0x95.toByte(), 0x08.toByte(),
+            0x81.toByte(), 0x02.toByte(),
+            0x95.toByte(), 0x01.toByte(),
+            0x75.toByte(), 0x08.toByte(),
+            0x81.toByte(), 0x01.toByte(),
+            0x95.toByte(), 0x06.toByte(),
+            0x75.toByte(), 0x08.toByte(),
+            0x15.toByte(), 0x00.toByte(),
+            0x25.toByte(), 0x65.toByte(),
+            0x05.toByte(), 0x07.toByte(),
+            0x19.toByte(), 0x00.toByte(),
+            0x29.toByte(), 0x65.toByte(),
+            0x81.toByte(), 0x00.toByte(),
+            0xC0.toByte(),
 
-            // --- Report ID 2: Consumer Control (Media, TV Navigation, Volume, Power) ---
-            0x05.toByte(), 0x0C.toByte(), // Usage Page (Consumer)
-            0x09.toByte(), 0x01.toByte(), // Usage (Consumer Control)
-            0xA1.toByte(), 0x01.toByte(), // Collection (Application)
-            0x85.toByte(), ID_CONSUMER,   //   Report ID (2)
-            0x19.toByte(), 0x00.toByte(), //   Usage Minimum (0)
-            0x2A.toByte(), 0xFF.toByte(), 0x03.toByte(), // Usage Maximum (0x03FF)
-            0x15.toByte(), 0x00.toByte(), //   Logical Minimum (0)
-            0x26.toByte(), 0xFF.toByte(), 0x03.toByte(), // Logical Maximum (0x03FF)
-            0x75.toByte(), 0x10.toByte(), //   Report Size (16)
-            0x95.toByte(), 0x01.toByte(), //   Report Count (1)
-            0x81.toByte(), 0x00.toByte(), //   Input (Data, Array)
-            0xC0.toByte(),                // End Collection
+            // Report ID 2: Consumer Control
+            0x05.toByte(), 0x0C.toByte(),
+            0x09.toByte(), 0x01.toByte(),
+            0xA1.toByte(), 0x01.toByte(),
+            0x85.toByte(), ID_CONSUMER,
+            0x19.toByte(), 0x00.toByte(),
+            0x2A.toByte(), 0xFF.toByte(), 0x03.toByte(),
+            0x15.toByte(), 0x00.toByte(),
+            0x26.toByte(), 0xFF.toByte(), 0x03.toByte(),
+            0x75.toByte(), 0x10.toByte(),
+            0x95.toByte(), 0x01.toByte(),
+            0x81.toByte(), 0x00.toByte(),
+            0xC0.toByte(),
 
-            // --- Report ID 3: Relative Mouse (Touchpad) ---
-            0x05.toByte(), 0x01.toByte(), // Usage Page (Generic Desktop)
-            0x09.toByte(), 0x02.toByte(), // Usage (Mouse)
-            0xA1.toByte(), 0x01.toByte(), // Collection (Application)
-            0x85.toByte(), ID_MOUSE,      //   Report ID (3)
-            0x09.toByte(), 0x01.toByte(), //   Usage (Pointer)
-            0xA1.toByte(), 0x00.toByte(), //   Collection (Physical)
-            0x05.toByte(), 0x09.toByte(), //     Usage Page (Button)
-            0x19.toByte(), 0x01.toByte(), //     Usage Minimum (Button 1)
-            0x29.toByte(), 0x03.toByte(), //     Usage Maximum (Button 3)
-            0x15.toByte(), 0x00.toByte(), //     Logical Minimum (0)
-            0x25.toByte(), 0x01.toByte(), //     Logical Maximum (1)
-            0x95.toByte(), 0x03.toByte(), //     Report Count (3)
-            0x75.toByte(), 0x01.toByte(), //     Report Size (1)
-            0x81.toByte(), 0x02.toByte(), //     Input (Data, Variable, Absolute)
-            0x95.toByte(), 0x01.toByte(), //     Report Count (1)
-            0x75.toByte(), 0x05.toByte(), //     Report Size (5)
-            0x81.toByte(), 0x01.toByte(), //     Input (Constant) - Padding
-            0x05.toByte(), 0x01.toByte(), //     Usage Page (Generic Desktop)
-            0x09.toByte(), 0x30.toByte(), //     Usage (X)
-            0x09.toByte(), 0x31.toByte(), //     Usage (Y)
-            0x15.toByte(), 0x81.toByte(), //     Logical Minimum (-127)
-            0x25.toByte(), 0x7F.toByte(), //     Logical Maximum (127)
-            0x75.toByte(), 0x08.toByte(), //     Report Size (8)
-            0x95.toByte(), 0x02.toByte(), //     Report Count (2)
-            0x81.toByte(), 0x06.toByte(), //     Input (Data, Variable, Relative)
-            0xC0.toByte(),                //   End Collection
-            0xC0.toByte()                 // End Collection
+            // Report ID 3: Relative Mouse
+            0x05.toByte(), 0x01.toByte(),
+            0x09.toByte(), 0x02.toByte(),
+            0xA1.toByte(), 0x01.toByte(),
+            0x85.toByte(), ID_MOUSE,
+            0x09.toByte(), 0x01.toByte(),
+            0xA1.toByte(), 0x00.toByte(),
+            0x05.toByte(), 0x09.toByte(),
+            0x19.toByte(), 0x01.toByte(),
+            0x29.toByte(), 0x03.toByte(),
+            0x15.toByte(), 0x00.toByte(),
+            0x25.toByte(), 0x01.toByte(),
+            0x95.toByte(), 0x03.toByte(),
+            0x75.toByte(), 0x01.toByte(),
+            0x81.toByte(), 0x02.toByte(),
+            0x95.toByte(), 0x01.toByte(),
+            0x75.toByte(), 0x05.toByte(),
+            0x81.toByte(), 0x01.toByte(),
+            0x05.toByte(), 0x01.toByte(),
+            0x09.toByte(), 0x30.toByte(),
+            0x09.toByte(), 0x31.toByte(),
+            0x15.toByte(), 0x81.toByte(),
+            0x25.toByte(), 0x7F.toByte(),
+            0x75.toByte(), 0x08.toByte(),
+            0x95.toByte(), 0x02.toByte(),
+            0x81.toByte(), 0x06.toByte(),
+            0xC0.toByte(),
+            0xC0.toByte()
         )
     }
 
@@ -134,10 +130,6 @@ class BtRemote(private val context: Context) {
     private val bluetoothAdapter: BluetoothAdapter? = bluetoothManager?.adapter
     private var hidDevice: BluetoothHidDevice? = null
     private val executor = Executors.newSingleThreadExecutor()
-    private val mainHandler = Handler(Looper.getMainLooper())
-
-    private val _isRegistered = MutableStateFlow(false)
-    val isRegistered: StateFlow<Boolean> = _isRegistered.asStateFlow()
 
     private val _connectedDevice = MutableStateFlow<BluetoothDevice?>(null)
     val connectedDevice: StateFlow<BluetoothDevice?> = _connectedDevice.asStateFlow()
@@ -145,19 +137,18 @@ class BtRemote(private val context: Context) {
     private val _pairedDevices = MutableStateFlow<List<BluetoothDevice>>(emptyList())
     val pairedDevices: StateFlow<List<BluetoothDevice>> = _pairedDevices.asStateFlow()
 
-    private val _statusText = MutableStateFlow("Initializing Bluetooth HID...")
+    private val _statusText = MutableStateFlow("Initializing...")
     val statusText: StateFlow<String> = _statusText.asStateFlow()
 
     private val hidCallback = object : BluetoothHidDevice.Callback() {
         override fun onAppStatusChanged(pluggedDevice: BluetoothDevice?, registered: Boolean) {
-            Log.d(TAG, "onAppStatusChanged: registered=$registered, device=${pluggedDevice?.name}")
-            _isRegistered.value = registered
             if (registered) {
-                _statusText.value = if (_connectedDevice.value != null) "Connected" else "Ready to Connect"
                 refreshPairedDevices()
                 if (pluggedDevice != null) {
                     _connectedDevice.value = pluggedDevice
                     _statusText.value = "Connected"
+                } else {
+                    _statusText.value = "Tap to Connect"
                 }
             } else {
                 _statusText.value = "HID Unregistered"
@@ -165,7 +156,6 @@ class BtRemote(private val context: Context) {
         }
 
         override fun onConnectionStateChanged(device: BluetoothDevice?, state: Int) {
-            Log.d(TAG, "onConnectionStateChanged: ${device?.name} -> $state")
             when (state) {
                 BluetoothProfile.STATE_CONNECTED -> {
                     _connectedDevice.value = device
@@ -195,9 +185,8 @@ class BtRemote(private val context: Context) {
         override fun onServiceDisconnected(profile: Int) {
             if (profile == BluetoothProfile.HID_DEVICE) {
                 hidDevice = null
-                _isRegistered.value = false
                 _connectedDevice.value = null
-                _statusText.value = "HID Service Disconnected"
+                _statusText.value = "Service Disconnected"
             }
         }
     }
@@ -222,8 +211,7 @@ class BtRemote(private val context: Context) {
 
     fun refreshPairedDevices() {
         try {
-            val bonded = bluetoothAdapter?.bondedDevices?.toList() ?: emptyList()
-            _pairedDevices.value = bonded
+            _pairedDevices.value = bluetoothAdapter?.bondedDevices?.toList() ?: emptyList()
         } catch (e: Exception) {
             Log.e(TAG, "Failed to get bonded devices", e)
         }
@@ -246,7 +234,7 @@ class BtRemote(private val context: Context) {
 
     fun connect(device: BluetoothDevice) {
         val hid = hidDevice ?: return
-        _statusText.value = "Connecting to ${device.name ?: "TV"}..."
+        _statusText.value = "Connecting..."
         hid.connect(device)
     }
 
@@ -255,7 +243,6 @@ class BtRemote(private val context: Context) {
         hidDevice?.disconnect(dev)
     }
 
-    // Send Keyboard Key Press & Release
     fun sendKey(keyCode: Byte, modifier: Byte = 0x00) {
         val dev = _connectedDevice.value ?: return
         val hid = hidDevice ?: return
@@ -264,16 +251,33 @@ class BtRemote(private val context: Context) {
                 val down = byteArrayOf(modifier, 0x00, keyCode, 0x00, 0x00, 0x00, 0x00, 0x00)
                 val up = byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
                 hid.sendReport(dev, ID_KEYBOARD.toInt(), down)
-                Thread.sleep(18)
+                Thread.sleep(15)
                 hid.sendReport(dev, ID_KEYBOARD.toInt(), up)
-                Thread.sleep(12)
+                Thread.sleep(10)
             } catch (e: Exception) {
                 Log.e(TAG, "sendKey failed", e)
             }
         }
     }
 
-    // Send Consumer Control Key (Volume, Media, Home, Back, Power)
+    fun clearTvInputField() {
+        val dev = _connectedDevice.value ?: return
+        val hid = hidDevice ?: return
+        executor.execute {
+            try {
+                hid.sendReport(dev, ID_KEYBOARD.toInt(), byteArrayOf(MOD_LEFT_CTRL, 0x00, KEY_A, 0x00, 0x00, 0x00, 0x00, 0x00))
+                Thread.sleep(20)
+                hid.sendReport(dev, ID_KEYBOARD.toInt(), byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00))
+                Thread.sleep(25)
+                hid.sendReport(dev, ID_KEYBOARD.toInt(), byteArrayOf(0x00, 0x00, KEY_BACKSPACE, 0x00, 0x00, 0x00, 0x00, 0x00))
+                Thread.sleep(20)
+                hid.sendReport(dev, ID_KEYBOARD.toInt(), byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00))
+            } catch (e: Exception) {
+                Log.e(TAG, "clearTvInputField failed", e)
+            }
+        }
+    }
+
     fun sendConsumer(usageId: Int) {
         val dev = _connectedDevice.value ?: return
         val hid = hidDevice ?: return
@@ -290,7 +294,6 @@ class BtRemote(private val context: Context) {
         }
     }
 
-    // Send Touchpad Mouse Move / Tap
     fun sendMouse(dx: Int, dy: Int, leftClick: Boolean = false) {
         val dev = _connectedDevice.value ?: return
         val hid = hidDevice ?: return
@@ -311,7 +314,6 @@ class BtRemote(private val context: Context) {
         }
     }
 
-    // Type an entire string directly from mobile keyboard to TV!
     fun sendText(text: String, pressEnterAfter: Boolean = false) {
         if (text.isEmpty() && !pressEnterAfter) return
         val dev = _connectedDevice.value ?: return
@@ -325,15 +327,15 @@ class BtRemote(private val context: Context) {
                     val down = byteArrayOf(modifier, 0x00, keyCode, 0x00, 0x00, 0x00, 0x00, 0x00)
                     val up = byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
                     hid.sendReport(dev, ID_KEYBOARD.toInt(), down)
-                    Thread.sleep(16)
+                    Thread.sleep(14)
                     hid.sendReport(dev, ID_KEYBOARD.toInt(), up)
-                    Thread.sleep(16)
+                    Thread.sleep(14)
                 }
                 if (pressEnterAfter) {
                     val down = byteArrayOf(0x00, 0x00, KEY_ENTER, 0x00, 0x00, 0x00, 0x00, 0x00)
                     val up = byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
                     hid.sendReport(dev, ID_KEYBOARD.toInt(), down)
-                    Thread.sleep(20)
+                    Thread.sleep(18)
                     hid.sendReport(dev, ID_KEYBOARD.toInt(), up)
                 }
             } catch (e: Exception) {
@@ -342,9 +344,8 @@ class BtRemote(private val context: Context) {
         }
     }
 
-    // Map ASCII characters to (ShiftModifier, HID KeyCode)
     private fun charToHid(c: Char): Pair<Byte, Byte>? {
-        val shift: Byte = 0x02
+        val shift = MOD_LEFT_SHIFT
         val none: Byte = 0x00
         return when (c) {
             in 'a'..'z' -> Pair(none, (0x04 + (c - 'a')).toByte())

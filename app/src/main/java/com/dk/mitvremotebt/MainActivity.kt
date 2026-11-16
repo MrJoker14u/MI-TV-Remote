@@ -7,6 +7,9 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import android.view.HapticFeedbackConstants
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -28,14 +31,9 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.Backspace
 import androidx.compose.material.icons.automirrored.rounded.Send
-import androidx.compose.material.icons.automirrored.rounded.VolumeMute
-import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -49,7 +47,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -57,12 +54,11 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import java.util.Locale
 
-// Theme Colors matching the Dark Purple Glow UI
 val BgDeep = Color(0xFF0A0B10)
 val SurfaceDark = Color(0xFF151621)
 val SurfaceElevated = Color(0xFF1E202E)
@@ -123,24 +119,99 @@ fun MiTvRemoteScreen(btRemote: BtRemote) {
     var bottomNav by remember { mutableStateOf(BottomNav.REMOTE) }
     var showDeviceSheet by remember { mutableStateOf(false) }
 
-    // Request Bluetooth Permissions on Android 12+
-    val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        arrayOf(
-            Manifest.permission.BLUETOOTH_CONNECT,
-            Manifest.permission.BLUETOOTH_SCAN
-        )
-    } else {
-        arrayOf(
-            Manifest.permission.BLUETOOTH,
-            Manifest.permission.BLUETOOTH_ADMIN
-        )
+    var isListening by remember { mutableStateOf(false) }
+    var voiceStatus by remember { mutableStateOf("") }
+
+    val speechRecognizer = remember {
+        if (SpeechRecognizer.isRecognitionAvailable(context)) {
+            SpeechRecognizer.createSpeechRecognizer(context)
+        } else null
     }
 
-    val launcher = rememberLauncherForActivityResult(
+    DisposableEffect(Unit) {
+        onDispose {
+            speechRecognizer?.destroy()
+        }
+    }
+
+    fun startPhoneVoiceToTv() {
+        if (speechRecognizer == null) {
+            btRemote.sendConsumer(BtRemote.CONSUMER_VOICE_SEARCH)
+            return
+        }
+
+        btRemote.sendConsumer(BtRemote.CONSUMER_VOICE_SEARCH)
+
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+        }
+
+        speechRecognizer.setRecognitionListener(object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) {
+                isListening = true
+                voiceStatus = "Listening on phone mic..."
+            }
+            override fun onBeginningOfSpeech() {
+                voiceStatus = "Speak now..."
+            }
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {
+                isListening = false
+                voiceStatus = "Sending to TV..."
+            }
+            override fun onError(error: Int) {
+                isListening = false
+                voiceStatus = ""
+            }
+            override fun onResults(results: Bundle?) {
+                isListening = false
+                val spoken = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
+                if (!spoken.isNullOrBlank()) {
+                    voiceStatus = "Sent: $spoken"
+                    btRemote.sendText(spoken, pressEnterAfter = true)
+                } else {
+                    voiceStatus = ""
+                }
+            }
+            override fun onPartialResults(partialResults: Bundle?) {
+                val partial = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
+                if (!partial.isNullOrBlank()) {
+                    voiceStatus = partial
+                }
+            }
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
+
+        speechRecognizer.startListening(intent)
+    }
+
+    val permissions = remember {
+        buildList {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                add(Manifest.permission.BLUETOOTH_CONNECT)
+                add(Manifest.permission.BLUETOOTH_SCAN)
+            } else {
+                add(Manifest.permission.BLUETOOTH)
+                add(Manifest.permission.BLUETOOTH_ADMIN)
+            }
+            add(Manifest.permission.RECORD_AUDIO)
+        }.toTypedArray()
+    }
+
+    val permLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        btRemote.start()
+    }
+
+    val micPermLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (granted.values.all { it }) {
-            btRemote.start()
+        if (granted) {
+            startPhoneVoiceToTv()
         }
     }
 
@@ -151,7 +222,7 @@ fun MiTvRemoteScreen(btRemote: BtRemote) {
         if (allGranted) {
             btRemote.start()
         } else {
-            launcher.launch(permissions)
+            permLauncher.launch(permissions)
         }
     }
 
@@ -181,7 +252,6 @@ fun MiTvRemoteScreen(btRemote: BtRemote) {
                 .padding(horizontal = 18.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // 1. TOP HEADER BAR
             TopHeaderBar(
                 deviceName = connectedDevice?.name ?: "Mi TV 4A",
                 isConnected = connectedDevice != null,
@@ -197,7 +267,6 @@ fun MiTvRemoteScreen(btRemote: BtRemote) {
                 }
             )
 
-            // 2. MODE SWITCHER TABS (Remote / Touchpad / Keyboard)
             ModeSelectorTabs(
                 currentMode = topMode,
                 onModeSelected = {
@@ -207,7 +276,6 @@ fun MiTvRemoteScreen(btRemote: BtRemote) {
                 }
             )
 
-            // 3. MAIN DYNAMIC CONTENT AREA
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -220,7 +288,7 @@ fun MiTvRemoteScreen(btRemote: BtRemote) {
                         AppsShortcutsSection(
                             onCommand = {
                                 haptic()
-                                it()
+                                btRemote.sendConsumer(BtRemote.CONSUMER_HOME)
                             }
                         )
                     }
@@ -236,10 +304,29 @@ fun MiTvRemoteScreen(btRemote: BtRemote) {
                     topMode == TopMode.REMOTE -> {
                         RemoteControlSection(
                             btRemote = btRemote,
+                            isListening = isListening,
+                            voiceStatus = voiceStatus,
                             onHaptic = { haptic() },
                             onOpenKeyboard = {
                                 haptic()
                                 topMode = TopMode.KEYBOARD
+                            },
+                            onVoiceClick = {
+                                haptic()
+                                if (isListening) {
+                                    speechRecognizer?.stopListening()
+                                    isListening = false
+                                } else {
+                                    val hasMic = ContextCompat.checkSelfPermission(
+                                        context,
+                                        Manifest.permission.RECORD_AUDIO
+                                    ) == PackageManager.PERMISSION_GRANTED
+                                    if (hasMic) {
+                                        startPhoneVoiceToTv()
+                                    } else {
+                                        micPermLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                    }
+                                }
                             }
                         )
                     }
@@ -262,7 +349,6 @@ fun MiTvRemoteScreen(btRemote: BtRemote) {
                 }
             }
 
-            // 4. BOTTOM NAVIGATION BAR
             BottomNavigationBar(
                 selected = bottomNav,
                 onSelect = {
@@ -272,7 +358,6 @@ fun MiTvRemoteScreen(btRemote: BtRemote) {
             )
         }
 
-        // Device Connection Bottom Sheet
         if (showDeviceSheet) {
             DevicePickerDialog(
                 pairedDevices = pairedDevices,
@@ -316,7 +401,6 @@ fun TopHeaderBar(
                 .padding(vertical = 4.dp, horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // TV Icon Badge
             Box(
                 modifier = Modifier
                     .size(42.dp)
@@ -326,7 +410,7 @@ fun TopHeaderBar(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.Tv,
+                    imageVector = Icons.Rounded.PlayArrow,
                     contentDescription = "TV",
                     tint = GreenConnected,
                     modifier = Modifier.size(22.dp)
@@ -369,7 +453,6 @@ fun TopHeaderBar(
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            // Pair / Cast Icon Button
             IconButton(
                 onClick = onSelectDevice,
                 modifier = Modifier
@@ -379,7 +462,7 @@ fun TopHeaderBar(
                     .border(1.dp, Color.White.copy(alpha = 0.08f), CircleShape)
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.CastConnected,
+                    imageVector = Icons.Rounded.Refresh,
                     contentDescription = "Connect TV",
                     tint = TextPrimary,
                     modifier = Modifier.size(20.dp)
@@ -388,7 +471,6 @@ fun TopHeaderBar(
 
             Spacer(modifier = Modifier.width(10.dp))
 
-            // Power Button
             IconButton(
                 onClick = onPowerClick,
                 modifier = Modifier
@@ -398,7 +480,7 @@ fun TopHeaderBar(
                     .border(1.dp, RedPower.copy(alpha = 0.45f), CircleShape)
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.PowerSettingsNew,
+                    imageVector = Icons.Rounded.Close,
                     contentDescription = "Power",
                     tint = RedPower,
                     modifier = Modifier.size(20.dp)
@@ -423,9 +505,9 @@ fun ModeSelectorTabs(
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         val items = listOf(
-            Triple(TopMode.REMOTE, "Remote", Icons.Rounded.SettingsRemote),
-            Triple(TopMode.TOUCHPAD, "Touchpad", Icons.Outlined.TouchApp),
-            Triple(TopMode.KEYBOARD, "Keyboard", Icons.Outlined.Keyboard)
+            Triple(TopMode.REMOTE, "Remote", Icons.Rounded.Home),
+            Triple(TopMode.TOUCHPAD, "Touchpad", Icons.Rounded.Star),
+            Triple(TopMode.KEYBOARD, "Keyboard", Icons.Rounded.Edit)
         )
 
         items.forEach { (mode, label, icon) ->
@@ -434,9 +516,7 @@ fun ModeSelectorTabs(
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(
-                        if (selected) PurpleDim.copy(alpha = 0.45f) else Color.Transparent
-                    )
+                    .background(if (selected) PurpleDim.copy(alpha = 0.45f) else Color.Transparent)
                     .border(
                         width = if (selected) 1.2.dp else 0.dp,
                         color = if (selected) PurpleGlow else Color.Transparent,
@@ -467,15 +547,17 @@ fun ModeSelectorTabs(
 @Composable
 fun RemoteControlSection(
     btRemote: BtRemote,
+    isListening: Boolean,
+    voiceStatus: String,
     onHaptic: () -> Unit,
-    onOpenKeyboard: () -> Unit
+    onOpenKeyboard: () -> Unit,
+    onVoiceClick: () -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.SpaceEvenly,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Quick Action Pill Row (Home, Back, Keyboard, Settings/Menu)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
@@ -497,7 +579,7 @@ fun RemoteControlSection(
                 }
             )
             PillActionButton(
-                icon = Icons.Outlined.Keyboard,
+                icon = Icons.Rounded.Edit,
                 desc = "Keyboard",
                 highlight = true,
                 onClick = onOpenKeyboard
@@ -512,10 +594,9 @@ fun RemoteControlSection(
             )
         }
 
-        // Circular D-Pad with Purple Glow Ring
         Box(
             modifier = Modifier
-                .size(236.dp)
+                .size(230.dp)
                 .shadow(24.dp, CircleShape, ambientColor = PurpleGlow, spotColor = PurpleGlow)
                 .clip(CircleShape)
                 .background(
@@ -532,86 +613,49 @@ fun RemoteControlSection(
                 ),
             contentAlignment = Alignment.Center
         ) {
-            // UP
             IconButton(
                 onClick = {
                     onHaptic()
                     btRemote.sendKey(BtRemote.KEY_UP)
                 },
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 12.dp)
-                    .size(56.dp)
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 10.dp).size(56.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.KeyboardArrowUp,
-                    contentDescription = "Up",
-                    tint = TextPrimary,
-                    modifier = Modifier.size(34.dp)
-                )
+                Icon(Icons.Rounded.KeyboardArrowUp, contentDescription = "Up", tint = TextPrimary, modifier = Modifier.size(34.dp))
             }
 
-            // DOWN
             IconButton(
                 onClick = {
                     onHaptic()
                     btRemote.sendKey(BtRemote.KEY_DOWN)
                 },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 12.dp)
-                    .size(56.dp)
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp).size(56.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.KeyboardArrowDown,
-                    contentDescription = "Down",
-                    tint = TextPrimary,
-                    modifier = Modifier.size(34.dp)
-                )
+                Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Down", tint = TextPrimary, modifier = Modifier.size(34.dp))
             }
 
-            // LEFT
             IconButton(
                 onClick = {
                     onHaptic()
                     btRemote.sendKey(BtRemote.KEY_LEFT)
                 },
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .padding(start = 12.dp)
-                    .size(56.dp)
+                modifier = Modifier.align(Alignment.CenterStart).padding(start = 10.dp).size(56.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.KeyboardArrowLeft,
-                    contentDescription = "Left",
-                    tint = TextPrimary,
-                    modifier = Modifier.size(34.dp)
-                )
+                Icon(Icons.Rounded.KeyboardArrowLeft, contentDescription = "Left", tint = TextPrimary, modifier = Modifier.size(34.dp))
             }
 
-            // RIGHT
             IconButton(
                 onClick = {
                     onHaptic()
                     btRemote.sendKey(BtRemote.KEY_RIGHT)
                 },
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 12.dp)
-                    .size(56.dp)
+                modifier = Modifier.align(Alignment.CenterEnd).padding(end = 10.dp).size(56.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Rounded.KeyboardArrowRight,
-                    contentDescription = "Right",
-                    tint = TextPrimary,
-                    modifier = Modifier.size(34.dp)
-                )
+                Icon(Icons.Rounded.KeyboardArrowRight, contentDescription = "Right", tint = TextPrimary, modifier = Modifier.size(34.dp))
             }
 
-            // CENTER OK BUTTON
             Box(
                 modifier = Modifier
-                    .size(86.dp)
+                    .size(84.dp)
                     .clip(CircleShape)
                     .background(
                         Brush.radialGradient(
@@ -625,16 +669,19 @@ fun RemoteControlSection(
                     },
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "OK",
-                    color = TextPrimary,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Text(text = "OK", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
         }
 
-        // Volume + Mute/Voice + Channel Rocker Row
+        if (voiceStatus.isNotEmpty()) {
+            Text(
+                text = voiceStatus,
+                color = PurpleBright,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -642,7 +689,6 @@ fun RemoteControlSection(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // VOL Rocker
             VerticalRocker(
                 label = "VOL",
                 onPlus = {
@@ -655,30 +701,49 @@ fun RemoteControlSection(
                 }
             )
 
-            // Center Mute & Voice Search
             Column(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                CenterPillButton(
-                    icon = Icons.AutoMirrored.Rounded.VolumeMute,
-                    tint = TextPrimary,
-                    onClick = {
-                        onHaptic()
-                        btRemote.sendConsumer(BtRemote.CONSUMER_MUTE)
-                    }
-                )
-                CenterPillButton(
-                    icon = Icons.Rounded.Mic,
-                    tint = PurpleBright,
-                    onClick = {
-                        onHaptic()
-                        btRemote.sendConsumer(BtRemote.CONSUMER_VOICE_SEARCH)
-                    }
-                )
+                Box(
+                    modifier = Modifier
+                        .width(64.dp)
+                        .height(48.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(SurfaceDark)
+                        .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(24.dp))
+                        .clickable {
+                            onHaptic()
+                            btRemote.sendConsumer(BtRemote.CONSUMER_MUTE)
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("MUTE", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Box(
+                    modifier = Modifier
+                        .width(64.dp)
+                        .height(48.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(if (isListening) RedPower.copy(alpha = 0.25f) else SurfaceDark)
+                        .border(
+                            1.5.dp,
+                            if (isListening) RedPower else PurpleGlow.copy(alpha = 0.5f),
+                            RoundedCornerShape(24.dp)
+                        )
+                        .clickable { onVoiceClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (isListening) "STOP" else "MIC",
+                        color = if (isListening) RedPower else PurpleBright,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
 
-            // CH Rocker
             VerticalRocker(
                 label = "CH",
                 onPlus = {
@@ -706,7 +771,6 @@ fun TouchpadControlSection(
         verticalArrangement = Arrangement.SpaceBetween,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Large Touchpad Surface with Purple Corner Brackets
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -734,121 +798,68 @@ fun TouchpadControlSection(
                 },
             contentAlignment = Alignment.Center
         ) {
-            // Corner Purple Glow Accents
             Canvas(modifier = Modifier.fillMaxSize().padding(14.dp)) {
                 val stroke = 3.dp.toPx()
                 val len = 26.dp.toPx()
                 val r = 12.dp.toPx()
 
-                // Top-Left
                 drawLine(PurpleBright, Offset(0f, r), Offset(0f, len), stroke, StrokeCap.Round)
                 drawLine(PurpleBright, Offset(r, 0f), Offset(len, 0f), stroke, StrokeCap.Round)
 
-                // Top-Right
                 drawLine(PurpleBright, Offset(size.width, r), Offset(size.width, len), stroke, StrokeCap.Round)
                 drawLine(PurpleBright, Offset(size.width - r, 0f), Offset(size.width - len, 0f), stroke, StrokeCap.Round)
 
-                // Bottom-Left
                 drawLine(PurpleBright, Offset(0f, size.height - r), Offset(0f, size.height - len), stroke, StrokeCap.Round)
                 drawLine(PurpleBright, Offset(r, size.height), Offset(len, size.height), stroke, StrokeCap.Round)
 
-                // Bottom-Right
                 drawLine(PurpleBright, Offset(size.width, size.height - r), Offset(size.width, size.height - len), stroke, StrokeCap.Round)
                 drawLine(PurpleBright, Offset(size.width - r, size.height), Offset(size.width - len, size.height), stroke, StrokeCap.Round)
             }
 
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    imageVector = Icons.Outlined.TouchApp,
-                    contentDescription = "Touchpad",
-                    tint = TextSecondary,
-                    modifier = Modifier.size(46.dp)
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = "Swipe to Navigate",
-                    color = TextSecondary,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium
-                )
-                Text(
-                    text = "Tap to Select",
-                    color = TextSecondary.copy(alpha = 0.75f),
-                    fontSize = 13.sp
-                )
+                Text(text = "TOUCHPAD", color = PurpleBright, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(text = "Swipe to Navigate", color = TextSecondary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                Text(text = "Tap to Select", color = TextSecondary.copy(alpha = 0.75f), fontSize = 13.sp)
             }
         }
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Media Playback Row 1 (Rewind, Play/Pause, Fast Forward)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            MediaButton(
-                icon = Icons.Rounded.FastRewind,
-                modifier = Modifier.weight(1f),
-                onClick = {
-                    onHaptic()
-                    btRemote.sendConsumer(BtRemote.CONSUMER_REWIND)
-                }
-            )
-            MediaButton(
-                icon = Icons.Rounded.PlayArrow,
-                modifier = Modifier.weight(1.2f),
-                highlight = true,
-                onClick = {
-                    onHaptic()
-                    btRemote.sendConsumer(BtRemote.CONSUMER_PLAY_PAUSE)
-                }
-            )
-            MediaButton(
-                icon = Icons.Rounded.FastForward,
-                modifier = Modifier.weight(1f),
-                onClick = {
-                    onHaptic()
-                    btRemote.sendConsumer(BtRemote.CONSUMER_FAST_FORWARD)
-                }
-            )
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            MediaTextButton(label = "REW", modifier = Modifier.weight(1f)) {
+                onHaptic()
+                btRemote.sendConsumer(BtRemote.CONSUMER_REWIND)
+            }
+            MediaTextButton(label = "PLAY / PAUSE", modifier = Modifier.weight(1.4f), highlight = true) {
+                onHaptic()
+                btRemote.sendConsumer(BtRemote.CONSUMER_PLAY_PAUSE)
+            }
+            MediaTextButton(label = "FWD", modifier = Modifier.weight(1f)) {
+                onHaptic()
+                btRemote.sendConsumer(BtRemote.CONSUMER_FAST_FORWARD)
+            }
         }
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // Media Playback Row 2 (Back, Stop, Home)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            MediaButton(
-                icon = Icons.AutoMirrored.Rounded.ArrowBack,
-                modifier = Modifier.weight(1f),
-                onClick = {
-                    onHaptic()
-                    btRemote.sendConsumer(BtRemote.CONSUMER_BACK)
-                }
-            )
-            MediaButton(
-                icon = Icons.Rounded.Stop,
-                modifier = Modifier.weight(1.2f),
-                onClick = {
-                    onHaptic()
-                    btRemote.sendConsumer(BtRemote.CONSUMER_STOP)
-                }
-            )
-            MediaButton(
-                icon = Icons.Outlined.Home,
-                modifier = Modifier.weight(1f),
-                onClick = {
-                    onHaptic()
-                    btRemote.sendConsumer(BtRemote.CONSUMER_HOME)
-                }
-            )
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            MediaTextButton(label = "BACK", modifier = Modifier.weight(1f)) {
+                onHaptic()
+                btRemote.sendConsumer(BtRemote.CONSUMER_BACK)
+            }
+            MediaTextButton(label = "STOP", modifier = Modifier.weight(1.4f)) {
+                onHaptic()
+                btRemote.sendConsumer(BtRemote.CONSUMER_STOP)
+            }
+            MediaTextButton(label = "HOME", modifier = Modifier.weight(1f)) {
+                onHaptic()
+                btRemote.sendConsumer(BtRemote.CONSUMER_HOME)
+            }
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Volume Control Bar
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -858,12 +869,12 @@ fun TouchpadControlSection(
                 .padding(horizontal = 14.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = {
+            TextButton(onClick = {
                 onHaptic()
                 sliderPos = (sliderPos - 0.1f).coerceIn(0f, 1f)
                 btRemote.sendConsumer(BtRemote.CONSUMER_VOL_DOWN)
             }) {
-                Icon(Icons.AutoMirrored.Rounded.VolumeMute, contentDescription = "Vol Down", tint = TextPrimary)
+                Text("VOL -", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
 
             Slider(
@@ -885,12 +896,12 @@ fun TouchpadControlSection(
                 )
             )
 
-            IconButton(onClick = {
+            TextButton(onClick = {
                 onHaptic()
                 sliderPos = (sliderPos + 0.1f).coerceIn(0f, 1f)
                 btRemote.sendConsumer(BtRemote.CONSUMER_VOL_UP)
             }) {
-                Icon(Icons.AutoMirrored.Rounded.VolumeUp, contentDescription = "Vol Up", tint = TextPrimary)
+                Text("VOL +", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -903,7 +914,7 @@ fun DirectKeyboardSection(
     onBackToRemote: () -> Unit
 ) {
     var inputText by remember { mutableStateOf("") }
-    var liveTypingMode by remember { mutableStateOf(false) }
+    var liveSyncEnabled by remember { mutableStateOf(true) }
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -927,38 +938,56 @@ fun DirectKeyboardSection(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Direct Mobile Keyboard",
-                    color = TextPrimary,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Live TV Keyboard",
+                        color = TextPrimary,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    if (liveSyncEnabled) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(GreenConnected.copy(alpha = 0.2f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text("LIVE SYNC", color = GreenConnected, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
                 TextButton(onClick = onBackToRemote) {
                     Text("Done", color = PurpleBright, fontWeight = FontWeight.SemiBold)
                 }
             }
 
             Text(
-                text = "TV ke search box par click karein, phir yahan phone keyboard se seedha type karein:",
+                text = "Open any search box on TV (Play Store, YouTube, Netflix) and type here—every letter syncs instantly to your TV.",
                 color = TextSecondary,
-                fontSize = 13.sp
+                fontSize = 12.sp,
+                lineHeight = 17.sp
             )
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Text Input Box
             OutlinedTextField(
                 value = inputText,
                 onValueChange = { newText ->
-                    if (liveTypingMode) {
-                        if (newText.length > inputText.length) {
-                            val added = newText.substring(inputText.length)
-                            btRemote.sendText(added, pressEnterAfter = false)
-                        } else if (newText.length < inputText.length) {
-                            val diff = inputText.length - newText.length
-                            repeat(diff) {
-                                btRemote.sendKey(BtRemote.KEY_BACKSPACE)
-                            }
+                    if (liveSyncEnabled) {
+                        var commonLen = 0
+                        val minLen = minOf(inputText.length, newText.length)
+                        while (commonLen < minLen && inputText[commonLen] == newText[commonLen]) {
+                            commonLen++
+                        }
+                        val backspacesNeeded = inputText.length - commonLen
+                        val addedText = newText.substring(commonLen)
+
+                        repeat(backspacesNeeded) {
+                            btRemote.sendKey(BtRemote.KEY_BACKSPACE)
+                        }
+                        if (addedText.isNotEmpty()) {
+                            btRemote.sendText(addedText, pressEnterAfter = false)
                         }
                     }
                     inputText = newText
@@ -967,7 +996,7 @@ fun DirectKeyboardSection(
                     .fillMaxWidth()
                     .focusRequester(focusRequester),
                 placeholder = {
-                    Text("Type movie, YouTube search, password...", color = TextSecondary)
+                    Text("Type here to search on TV...", color = TextSecondary)
                 },
                 singleLine = true,
                 shape = RoundedCornerShape(16.dp),
@@ -980,13 +1009,12 @@ fun DirectKeyboardSection(
                     unfocusedTextColor = TextPrimary,
                     cursorColor = PurpleBright
                 ),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(
-                    onSend = {
+                    onSearch = {
                         onHaptic()
-                        if (!liveTypingMode && inputText.isNotEmpty()) {
+                        if (!liveSyncEnabled && inputText.isNotEmpty()) {
                             btRemote.sendText(inputText, pressEnterAfter = true)
-                            inputText = ""
                         } else {
                             btRemote.sendKey(BtRemote.KEY_ENTER)
                         }
@@ -994,8 +1022,14 @@ fun DirectKeyboardSection(
                 ),
                 trailingIcon = {
                     if (inputText.isNotEmpty()) {
-                        IconButton(onClick = { inputText = "" }) {
-                            Icon(Icons.Rounded.Close, contentDescription = "Clear", tint = TextSecondary)
+                        IconButton(onClick = {
+                            onHaptic()
+                            if (liveSyncEnabled) {
+                                btRemote.clearTvInputField()
+                            }
+                            inputText = ""
+                        }) {
+                            Icon(Icons.Rounded.Close, contentDescription = "Clear All", tint = TextSecondary)
                         }
                     }
                 }
@@ -1003,7 +1037,6 @@ fun DirectKeyboardSection(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Live Typing Toggle Switch
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1015,22 +1048,22 @@ fun DirectKeyboardSection(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Instant Live Typing",
+                        text = "Instant Live Sync",
                         color = TextPrimary,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium
                     )
                     Text(
-                        text = if (liveTypingMode) "Har letter turant TV par type ho raha hai" else "Type karke 'Send to TV' dabaye",
+                        text = if (liveSyncEnabled) "Typing syncs directly to TV in real time" else "Type full text first, then tap Send",
                         color = TextSecondary,
                         fontSize = 11.sp
                     )
                 }
                 Switch(
-                    checked = liveTypingMode,
+                    checked = liveSyncEnabled,
                     onCheckedChange = {
                         onHaptic()
-                        liveTypingMode = it
+                        liveSyncEnabled = it
                     },
                     colors = SwitchDefaults.colors(
                         checkedThumbColor = Color.White,
@@ -1040,7 +1073,6 @@ fun DirectKeyboardSection(
             }
         }
 
-        // Action Buttons (Send Text, Send + Search, Backspace, Enter)
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1049,25 +1081,26 @@ fun DirectKeyboardSection(
                 Button(
                     onClick = {
                         onHaptic()
-                        if (inputText.isNotEmpty()) {
-                            btRemote.sendText(inputText, pressEnterAfter = false)
-                            inputText = ""
-                        }
+                        btRemote.clearTvInputField()
+                        inputText = ""
                     },
                     modifier = Modifier.weight(1f).height(48.dp),
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = SurfaceElevated)
                 ) {
-                    Icon(Icons.AutoMirrored.Rounded.Send, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Rounded.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Send Text", fontWeight = FontWeight.SemiBold)
+                    Text("Clear TV Box", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 }
 
                 Button(
                     onClick = {
                         onHaptic()
-                        btRemote.sendText(inputText, pressEnterAfter = true)
-                        inputText = ""
+                        if (!liveSyncEnabled && inputText.isNotEmpty()) {
+                            btRemote.sendText(inputText, pressEnterAfter = true)
+                        } else {
+                            btRemote.sendKey(BtRemote.KEY_ENTER)
+                        }
                     },
                     modifier = Modifier.weight(1.2f).height(48.dp),
                     shape = RoundedCornerShape(14.dp),
@@ -1075,7 +1108,7 @@ fun DirectKeyboardSection(
                 ) {
                     Icon(Icons.Rounded.Search, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Send & Enter", fontWeight = FontWeight.Bold)
+                    Text(if (liveSyncEnabled) "Search / Enter" else "Send & Search", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
             }
 
@@ -1087,28 +1120,30 @@ fun DirectKeyboardSection(
                     onClick = {
                         onHaptic()
                         btRemote.sendKey(BtRemote.KEY_BACKSPACE)
+                        if (inputText.isNotEmpty()) {
+                            inputText = inputText.dropLast(1)
+                        }
                     },
                     modifier = Modifier.weight(1f).height(44.dp),
                     shape = RoundedCornerShape(14.dp),
                     border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f))
                 ) {
-                    Icon(Icons.AutoMirrored.Rounded.Backspace, contentDescription = "Backspace", tint = TextPrimary, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("TV Backspace", color = TextPrimary, fontSize = 12.sp)
+                    Text("Backspace", color = TextPrimary, fontSize = 12.sp)
                 }
 
                 OutlinedButton(
                     onClick = {
                         onHaptic()
-                        btRemote.sendKey(BtRemote.KEY_ENTER)
+                        btRemote.sendKey(BtRemote.KEY_SPACE)
+                        if (liveSyncEnabled) {
+                            inputText += " "
+                        }
                     },
                     modifier = Modifier.weight(1f).height(44.dp),
                     shape = RoundedCornerShape(14.dp),
                     border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f))
                 ) {
-                    Icon(Icons.Rounded.KeyboardReturn, contentDescription = "Enter", tint = TextPrimary, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("TV Enter / OK", color = TextPrimary, fontSize = 12.sp)
+                    Text("Space", color = TextPrimary, fontSize = 12.sp)
                 }
             }
         }
@@ -1116,13 +1151,13 @@ fun DirectKeyboardSection(
 }
 
 @Composable
-fun AppsShortcutsSection(onCommand: (() -> Unit) -> Unit) {
+fun AppsShortcutsSection(onCommand: () -> Unit) {
     val apps = listOf(
         Triple("YouTube", Color(0xFFDC2626), "YT"),
         Triple("Netflix", Color(0xFF171717), "N"),
         Triple("Prime Video", Color(0xFF0284C7), "Prime"),
         Triple("Hotstar", Color(0xFF1E3A8A), "Hotstar"),
-        Triple("JioCinema", Color(0xFFDB2777), "Jio"),
+        Triple("Play Store", Color(0xFF059669), "Play"),
         Triple("SonyLIV", Color(0xFF4F46E5), "Sony")
     )
 
@@ -1131,14 +1166,14 @@ fun AppsShortcutsSection(onCommand: (() -> Unit) -> Unit) {
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "TV Quick Shortcuts",
+            text = "TV Quick Launcher",
             color = TextPrimary,
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = 6.dp)
         )
         Text(
-            text = "Mi TV Home screen par aane ke liye kisi bhi shortcut par tap karein:",
+            text = "Tap any app card to jump straight to your TV Home screen:",
             color = TextSecondary,
             fontSize = 13.sp,
             modifier = Modifier.padding(bottom = 18.dp)
@@ -1154,10 +1189,8 @@ fun AppsShortcutsSection(onCommand: (() -> Unit) -> Unit) {
                         Surface(
                             modifier = Modifier
                                 .weight(1f)
-                                .height(82.dp)
-                                .clickable {
-                                    onCommand { }
-                                },
+                                .height(80.dp)
+                                .clickable { onCommand() },
                             shape = RoundedCornerShape(18.dp),
                             color = SurfaceDark,
                             border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
@@ -1168,25 +1201,15 @@ fun AppsShortcutsSection(onCommand: (() -> Unit) -> Unit) {
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(44.dp)
+                                        .size(42.dp)
                                         .clip(RoundedCornerShape(12.dp))
                                         .background(bg),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text(
-                                        text = badge,
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp
-                                    )
+                                    Text(text = badge, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                                 }
                                 Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = name,
-                                    color = TextPrimary,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 14.sp
-                                )
+                                Text(text = name, color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                             }
                         }
                     }
@@ -1218,9 +1241,7 @@ fun MoreControlsSection(
         )
 
         Text(
-            text = "Pehli baar connect karne ke liye:
-1. Phone ke Bluetooth settings mein jaakar Mi TV 4A se pair karein.
-2. Upar 'Mi TV 4A' par tap karke Connect chunein.",
+            text = "First-time setup:\n1. Pair your Mi TV 4A in your phone's Bluetooth settings.\n2. Tap 'Mi TV 4A' at the top and select Connect.",
             color = TextSecondary,
             fontSize = 13.sp,
             lineHeight = 19.sp
@@ -1235,8 +1256,6 @@ fun MoreControlsSection(
             shape = RoundedCornerShape(14.dp),
             colors = ButtonDefaults.buttonColors(containerColor = PurpleGlow)
         ) {
-            Icon(Icons.Rounded.Bluetooth, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
             Text("Open Phone Bluetooth Settings", fontWeight = FontWeight.SemiBold)
         }
 
@@ -1285,9 +1304,9 @@ fun BottomNavigationBar(
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         val navItems = listOf(
-            Triple(BottomNav.REMOTE, "Remote", Icons.Rounded.SettingsRemote),
-            Triple(BottomNav.APPS, "Apps", Icons.Rounded.GridView),
-            Triple(BottomNav.MORE, "More", Icons.Rounded.MoreHoriz)
+            Triple(BottomNav.REMOTE, "Remote", Icons.Rounded.Home),
+            Triple(BottomNav.APPS, "Apps", Icons.Rounded.Menu),
+            Triple(BottomNav.MORE, "More", Icons.Rounded.MoreVert)
         )
 
         navItems.forEach { (item, label, icon) ->
@@ -1373,41 +1392,16 @@ fun VerticalRocker(
         IconButton(onClick = onPlus, modifier = Modifier.padding(top = 6.dp)) {
             Icon(Icons.Rounded.Add, contentDescription = "$label Up", tint = TextPrimary)
         }
-        Text(
-            text = label,
-            color = TextSecondary,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold
-        )
+        Text(text = label, color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         IconButton(onClick = onMinus, modifier = Modifier.padding(bottom = 6.dp)) {
-            Icon(Icons.Rounded.Remove, contentDescription = "$label Down", tint = TextPrimary)
+            Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "$label Down", tint = TextPrimary)
         }
     }
 }
 
 @Composable
-fun CenterPillButton(
-    icon: ImageVector,
-    tint: Color,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .width(64.dp)
-            .height(48.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .background(SurfaceDark)
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(24.dp))
-            .clickable { onClick() },
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
-    }
-}
-
-@Composable
-fun MediaButton(
-    icon: ImageVector,
+fun MediaTextButton(
+    label: String,
     modifier: Modifier = Modifier,
     highlight: Boolean = false,
     onClick: () -> Unit
@@ -1425,7 +1419,7 @@ fun MediaButton(
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        Icon(imageVector = icon, contentDescription = null, tint = TextPrimary, modifier = Modifier.size(24.dp))
+        Text(text = label, color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -1448,7 +1442,7 @@ fun DevicePickerDialog(
             Column {
                 if (pairedDevices.isEmpty()) {
                     Text(
-                        "Koi paired Bluetooth device nahi mila. Pehle phone ke Bluetooth se Mi TV ko pair karein.",
+                        "No paired Bluetooth devices found. Pair your Mi TV in phone Bluetooth settings first.",
                         color = TextSecondary,
                         fontSize = 13.sp
                     )
@@ -1468,16 +1462,8 @@ fun DevicePickerDialog(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Column {
-                                    Text(
-                                        text = dev.name ?: "Unknown TV",
-                                        color = TextPrimary,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Text(
-                                        text = dev.address,
-                                        color = TextSecondary,
-                                        fontSize = 11.sp
-                                    )
+                                    Text(text = dev.name ?: "Unknown TV", color = TextPrimary, fontWeight = FontWeight.SemiBold)
+                                    Text(text = dev.address, color = TextSecondary, fontSize = 11.sp)
                                 }
                                 Text(
                                     text = if (isCurrent) "Disconnect" else "Connect",

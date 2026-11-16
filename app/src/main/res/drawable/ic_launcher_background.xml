@@ -19,7 +19,6 @@
             </gradient>
         </aapt:attr>
     </path>
-    <!-- Subtle glowing ring -->
     <path
         android:fillColor="#00000000"
         android:pathData="M54,18 A36,36 0 1,1 53.9,18 Z"
