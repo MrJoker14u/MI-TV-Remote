@@ -134,6 +134,10 @@ fun MiTvRemoteScreen(btRemote: BtRemote) {
         }
     }
 
+    val haptic: () -> Unit = {
+        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+    }
+
     fun startPhoneVoiceToTv() {
         if (speechRecognizer == null) {
             btRemote.sendConsumer(BtRemote.CONSUMER_VOICE_SEARCH)
@@ -226,10 +230,6 @@ fun MiTvRemoteScreen(btRemote: BtRemote) {
         }
     }
 
-    fun haptic() {
-        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-    }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -295,7 +295,7 @@ fun MiTvRemoteScreen(btRemote: BtRemote) {
                     bottomNav == BottomNav.MORE -> {
                         MoreControlsSection(
                             btRemote = btRemote,
-                            onHaptic = { haptic() },
+                            onHaptic = haptic,
                             onOpenBtSettings = {
                                 context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
                             }
@@ -306,7 +306,7 @@ fun MiTvRemoteScreen(btRemote: BtRemote) {
                             btRemote = btRemote,
                             isListening = isListening,
                             voiceStatus = voiceStatus,
-                            onHaptic = { haptic() },
+                            onHaptic = haptic,
                             onOpenKeyboard = {
                                 haptic()
                                 topMode = TopMode.KEYBOARD
@@ -333,13 +333,13 @@ fun MiTvRemoteScreen(btRemote: BtRemote) {
                     topMode == TopMode.TOUCHPAD -> {
                         TouchpadControlSection(
                             btRemote = btRemote,
-                            onHaptic = { haptic() }
+                            onHaptic = haptic
                         )
                     }
                     topMode == TopMode.KEYBOARD -> {
                         DirectKeyboardSection(
                             btRemote = btRemote,
-                            onHaptic = { haptic() },
+                            onHaptic = haptic,
                             onBackToRemote = {
                                 haptic()
                                 topMode = TopMode.REMOTE
@@ -471,7 +471,6 @@ fun TopHeaderBar(
 
             Spacer(modifier = Modifier.width(10.dp))
 
-            // Dedicated Power On/Off Button
             IconButton(
                 onClick = onPowerClick,
                 modifier = Modifier
@@ -481,7 +480,7 @@ fun TopHeaderBar(
                     .border(1.dp, RedPower.copy(alpha = 0.45f), CircleShape)
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.PowerSettingsNew,
+                    imageVector = Icons.Rounded.Power,
                     contentDescription = "Power",
                     tint = RedPower,
                     modifier = Modifier.size(20.dp)
@@ -737,7 +736,7 @@ fun RemoteControlSection(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Mic,
+                        imageVector = Icons.Rounded.RecordVoiceOver,
                         contentDescription = "Voice Search",
                         tint = if (isListening) RedPower else PurpleBright,
                         modifier = Modifier.size(22.dp)
@@ -1242,9 +1241,7 @@ fun MoreControlsSection(
         )
 
         Text(
-            text = "First-time setup:
-1. Pair your Mi TV 4A in your phone's Bluetooth settings.
-2. Tap 'Mi TV 4A' at the top and select Connect.",
+            text = "First-time setup:\n1. Pair your Mi TV 4A in your phone's Bluetooth settings.\n2. Tap 'Mi TV 4A' at the top and select Connect.",
             color = TextSecondary,
             fontSize = 13.sp,
             lineHeight = 19.sp
@@ -1252,7 +1249,7 @@ fun MoreControlsSection(
 
         Button(
             onClick = {
-                haptic()
+                onHaptic()
                 onOpenBtSettings()
             },
             modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -1270,7 +1267,7 @@ fun MoreControlsSection(
         ) {
             OutlinedButton(
                 onClick = {
-                    haptic()
+                    onHaptic()
                     btRemote.sendKey(BtRemote.KEY_ESCAPE)
                 },
                 modifier = Modifier.weight(1f),
@@ -1280,7 +1277,7 @@ fun MoreControlsSection(
             }
             OutlinedButton(
                 onClick = {
-                    haptic()
+                    onHaptic()
                     btRemote.sendKey(BtRemote.KEY_TAB)
                 },
                 modifier = Modifier.weight(1f),
@@ -1447,7 +1444,8 @@ fun DevicePickerDialog(
                     Text(
                         "No paired Bluetooth devices found. Pair your Mi TV in phone Bluetooth settings first.",
                         color = TextSecondary,
-513                  )
+                        fontSize = 13.sp
+                    )
                 } else {
                     LazyColumn(modifier = Modifier.heightIn(max = 260.dp)) {
                         items(pairedDevices) { dev ->
