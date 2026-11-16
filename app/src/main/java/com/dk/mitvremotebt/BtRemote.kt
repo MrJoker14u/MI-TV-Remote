@@ -353,8 +353,7 @@ class BtRemote(private val context: Context) {
             in '1'..'9' -> Pair(none, (0x1E + (c - '1')).toByte())
             '0' -> Pair(none, 0x27.toByte())
             ' ' -> Pair(none, KEY_SPACE)
-            '
-' -> Pair(none, KEY_ENTER)
+            '\n' -> Pair(none, KEY_ENTER)
             '!' -> Pair(shift, 0x1E.toByte())
             '@' -> Pair(shift, 0x1F.toByte())
             '#' -> Pair(shift, 0x20.toByte())
@@ -373,11 +372,11 @@ class BtRemote(private val context: Context) {
             '{' -> Pair(shift, 0x2F.toByte())
             ']' -> Pair(none, 0x30.toByte())
             '}' -> Pair(shift, 0x30.toByte())
-            '\' -> Pair(none, 0x31.toByte())
+            '\\' -> Pair(none, 0x31.toByte())
             '|' -> Pair(shift, 0x31.toByte())
             ';' -> Pair(none, 0x33.toByte())
             ':' -> Pair(shift, 0x33.toByte())
-            ''' -> Pair(none, 0x34.toByte())
+            '\'' -> Pair(none, 0x34.toByte())
             '"' -> Pair(shift, 0x34.toByte())
             '`' -> Pair(none, 0x35.toByte())
             '~' -> Pair(shift, 0x35.toByte())
@@ -390,4 +389,3 @@ class BtRemote(private val context: Context) {
             else -> null
         }
     }
-}
