@@ -1252,7 +1252,7 @@ fun MoreControlsSection(
 
         Button(
             onClick = {
-                onHaptic()
+                haptic()
                 onOpenBtSettings()
             },
             modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -1270,7 +1270,7 @@ fun MoreControlsSection(
         ) {
             OutlinedButton(
                 onClick = {
-                    onHaptic()
+                    haptic()
                     btRemote.sendKey(BtRemote.KEY_ESCAPE)
                 },
                 modifier = Modifier.weight(1f),
@@ -1280,7 +1280,7 @@ fun MoreControlsSection(
             }
             OutlinedButton(
                 onClick = {
-                    onHaptic()
+                    haptic()
                     btRemote.sendKey(BtRemote.KEY_TAB)
                 },
                 modifier = Modifier.weight(1f),
