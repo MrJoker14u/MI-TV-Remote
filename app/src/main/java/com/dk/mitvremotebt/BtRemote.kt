@@ -389,3 +389,4 @@ class BtRemote(private val context: Context) {
             else -> null
         }
     }
+} // <--- Make sure this final closing brace is present!
