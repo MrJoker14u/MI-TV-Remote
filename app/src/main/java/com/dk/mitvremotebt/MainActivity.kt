@@ -1218,14 +1218,11 @@ fun MoreControlsSection(
         )
 
         Text(
-            text = "Pehli baar connect karne ke liye:
-1. Phone ke Bluetooth settings mein jaakar Mi TV 4A se pair karein.
-2. Upar 'Mi TV 4A' par tap karke Connect chunein.",
-            color = TextSecondary,
-            fontSize = 13.sp,
-            lineHeight = 19.sp
-        )
-
+         text = "First-time setup:\n1. Pair your Mi TV 4A in your phone's Bluetooth settings.\n2. Tap 'Mi TV 4A' at the top and select Connect.",
+         color = TextSecondary,
+         fontSize = 13.sp,
+         lineHeight = 19.sp
+     )
         Button(
             onClick = {
                 onHaptic()
