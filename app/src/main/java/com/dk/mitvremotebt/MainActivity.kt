@@ -480,7 +480,7 @@ fun TopHeaderBar(
                     .border(1.dp, RedPower.copy(alpha = 0.45f), CircleShape)
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.Power,
+                    imageVector = Icons.Rounded.PowerSettingsNew,
                     contentDescription = "Power",
                     tint = RedPower,
                     modifier = Modifier.size(20.dp)
@@ -736,7 +736,7 @@ fun RemoteControlSection(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.RecordVoiceOver,
+                        imageVector = Icons.Rounded.Mic,
                         contentDescription = "Voice Search",
                         tint = if (isListening) RedPower else PurpleBright,
                         modifier = Modifier.size(22.dp)
@@ -999,345 +999,40 @@ fun DirectKeyboardSection(
                     Text("Type here to search on TV...", color = TextSecondary)
                 },
                 singleLine = true,
-                shape = RoundedCornerShape(16.dp),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = {
+                    btRemote.sendKey(BtRemote.KEY_ENTER)
+                }),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = PurpleBright,
-                    unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
-                    focusedContainerColor = SurfaceElevated,
-                    unfocusedContainerColor = SurfaceElevated,
+                    focusedBorderColor = PurpleGlow,
+                    unfocusedBorderColor = Color.White.copy(alpha = 0.12f),
+                    cursorColor = PurpleBright,
                     focusedTextColor = TextPrimary,
                     unfocusedTextColor = TextPrimary,
-                    cursorColor = PurpleBright
-                ),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(
-                    onSearch = {
-                        onHaptic()
-                        if (!liveSyncEnabled && inputText.isNotEmpty()) {
-                            btRemote.sendText(inputText, pressEnterAfter = true)
-                        } else {
-                            btRemote.sendKey(BtRemote.KEY_ENTER)
-                        }
-                    }
-                ),
-                trailingIcon = {
-                    if (inputText.isNotEmpty()) {
-                        IconButton(onClick = {
-                            onHaptic()
-                            if (liveSyncEnabled) {
-                                btRemote.clearTvInputField()
-                            }
-                            inputText = ""
-                        }) {
-                            Icon(Icons.Rounded.Close, contentDescription = "Clear All", tint = TextSecondary)
-                        }
-                    }
-                }
+                    focusedPlaceholderColor = TextSecondary,
+                    unfocusedPlaceholderColor = TextSecondary
+                )
             )
 
             Spacer(modifier = Modifier.height(12.dp))
 
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(SurfaceElevated)
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Instant Live Sync",
-                        color = TextPrimary,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Text(
-                        text = if (liveSyncEnabled) "Typing syncs directly to TV in real time" else "Type full text first, then tap Send",
-                        color = TextSecondary,
-                        fontSize = 11.sp
-                    )
-                }
-                Switch(
-                    checked = liveSyncEnabled,
-                    onCheckedChange = {
-                        onHaptic()
-                        liveSyncEnabled = it
-                    },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = Color.White,
-                        checkedTrackColor = PurpleGlow
-                    )
-                )
-            }
-        }
-
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Button(
-                    onClick = {
-                        onHaptic()
-                        btRemote.clearTvInputField()
-                        inputText = ""
-                    },
-                    modifier = Modifier.weight(1f).height(48.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = SurfaceElevated)
-                ) {
-                    Icon(Icons.Rounded.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Clear TV Box", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                }
-
-                Button(
-                    onClick = {
-                        onHaptic()
-                        if (!liveSyncEnabled && inputText.isNotEmpty()) {
-                            btRemote.sendText(inputText, pressEnterAfter = true)
-                        } else {
-                            btRemote.sendKey(BtRemote.KEY_ENTER)
-                        }
-                    },
-                    modifier = Modifier.weight(1.2f).height(48.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PurpleGlow)
-                ) {
-                    Icon(Icons.Rounded.Search, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(if (liveSyncEnabled) "Search / Enter" else "Send & Search", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                OutlinedButton(
-                    onClick = {
-                        onHaptic()
-                        btRemote.sendKey(BtRemote.KEY_BACKSPACE)
-                        if (inputText.isNotEmpty()) {
-                            inputText = inputText.dropLast(1)
-                        }
-                    },
-                    modifier = Modifier.weight(1f).height(44.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f))
-                ) {
-                    Text("Backspace", color = TextPrimary, fontSize = 12.sp)
-                }
-
-                OutlinedButton(
-                    onClick = {
-                        onHaptic()
-                        btRemote.sendKey(BtRemote.KEY_SPACE)
-                        if (liveSyncEnabled) {
-                            inputText += " "
-                        }
-                    },
-                    modifier = Modifier.weight(1f).height(44.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.14f))
-                ) {
-                    Text("Space", color = TextPrimary, fontSize = 12.sp)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun AppsShortcutsSection(onCommand: () -> Unit) {
-    val apps = listOf(
-        Triple("YouTube", Color(0xFFDC2626), "YT"),
-        Triple("Netflix", Color(0xFF171717), "N"),
-        Triple("Prime Video", Color(0xFF0284C7), "Prime"),
-        Triple("Hotstar", Color(0xFF1E3A8A), "Hotstar"),
-        Triple("Play Store", Color(0xFF059669), "Play"),
-        Triple("SonyLIV", Color(0xFF4F46E5), "Sony")
-    )
-
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(
-            text = "TV Quick Launcher",
-            color = TextPrimary,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 6.dp)
-        )
-        Text(
-            text = "Tap any app card to jump straight to your TV Home screen:",
-            color = TextSecondary,
-            fontSize = 13.sp,
-            modifier = Modifier.padding(bottom = 18.dp)
-        )
-
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            apps.chunked(2).forEach { rowApps ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    rowApps.forEach { (name, bg, badge) ->
-                        Surface(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(80.dp)
-                                .clickable { onCommand() },
-                            shape = RoundedCornerShape(18.dp),
-                            color = SurfaceDark,
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f))
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(14.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(42.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(bg),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(text = badge, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(text = name, color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun MoreControlsSection(
-    btRemote: BtRemote,
-    onHaptic: () -> Unit,
-    onOpenBtSettings: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .clip(RoundedCornerShape(24.dp))
-            .background(SurfaceDark)
-            .padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Text(
-            text = "Mi TV Setup & Extra Keys",
-            color = TextPrimary,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold
-        )
-
-        Text(
-            text = "First-time setup:\n1. Pair your Mi TV 4A in your phone's Bluetooth settings.\n2. Tap 'Mi TV 4A' at the top and select Connect.",
-            color = TextSecondary,
-            fontSize = 13.sp,
-            lineHeight = 19.sp
-        )
-
-        Button(
-            onClick = {
-                onHaptic()
-                onOpenBtSettings()
-            },
-            modifier = Modifier.fillMaxWidth().height(48.dp),
-            shape = RoundedCornerShape(14.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = PurpleGlow)
-        ) {
-            Text("Open Phone Bluetooth Settings", fontWeight = FontWeight.SemiBold)
-        }
-
-        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            OutlinedButton(
-                onClick = {
+                TextButton(onClick = {
                     onHaptic()
-                    btRemote.sendKey(BtRemote.KEY_ESCAPE)
-                },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text("ESC / Exit", color = TextPrimary)
-            }
-            OutlinedButton(
-                onClick = {
+                    btRemote.sendKey(BtRemote.KEY_BACKSPACE)
+                }) {
+                    Text("⌫ Backspace", color = TextPrimary, fontSize = 12.sp)
+                }
+                TextButton(onClick = {
                     onHaptic()
-                    btRemote.sendKey(BtRemote.KEY_TAB)
-                },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text("TAB Next", color = TextPrimary)
-            }
-        }
-    }
-}
-
-@Composable
-fun BottomNavigationBar(
-    selected: BottomNav,
-    onSelect: (BottomNav) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
-            .background(SurfaceDark)
-            .border(1.dp, Color.White.copy(alpha = 0.07f), RoundedCornerShape(22.dp))
-            .padding(5.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        val navItems = listOf(
-            Triple(BottomNav.REMOTE, "Remote", Icons.Rounded.Home),
-            Triple(BottomNav.APPS, "Apps", Icons.Rounded.Menu),
-            Triple(BottomNav.MORE, "More", Icons.Rounded.MoreVert)
-        )
-
-        navItems.forEach { (item, label, icon) ->
-            val isSelected = selected == item
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(if (isSelected) PurpleDim.copy(alpha = 0.45f) else Color.Transparent)
-                    .border(
-                        width = if (isSelected) 1.dp else 0.dp,
-                        color = if (isSelected) PurpleGlow else Color.Transparent,
-                        shape = RoundedCornerShape(16.dp)
-                    )
-                    .clickable { onSelect(item) }
-                    .padding(vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = label,
-                    tint = if (isSelected) TextPrimary else TextSecondary,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = label,
-                    color = if (isSelected) TextPrimary else TextSecondary,
-                    fontSize = 11.sp,
-                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
-                )
+                    liveSyncEnabled = !liveSyncEnabled
+                }) {
+                    Text(if (liveSyncEnabled) "Live Sync On" else "Live Sync Off", color = PurpleBright, fontSize = 12.sp)
+                }
             }
         }
     }
@@ -1352,15 +1047,10 @@ fun PillActionButton(
 ) {
     Box(
         modifier = Modifier
-            .width(72.dp)
-            .height(48.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .background(if (highlight) PurpleDim.copy(alpha = 0.45f) else SurfaceDark)
-            .border(
-                1.dp,
-                if (highlight) PurpleGlow else Color.White.copy(alpha = 0.08f),
-                RoundedCornerShape(24.dp)
-            )
+            .size(64.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(if (highlight) PurpleDim.copy(alpha = 0.35f) else SurfaceDark)
+            .border(1.dp, if (highlight) PurpleGlow.copy(alpha = 0.45f) else Color.White.copy(alpha = 0.08f), RoundedCornerShape(18.dp))
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
@@ -1380,46 +1070,145 @@ fun VerticalRocker(
     onMinus: () -> Unit
 ) {
     Column(
-        modifier = Modifier
-            .width(66.dp)
-            .height(146.dp)
-            .clip(RoundedCornerShape(33.dp))
-            .background(SurfaceDark)
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(33.dp)),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceBetween
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        IconButton(onClick = onPlus, modifier = Modifier.padding(top = 6.dp)) {
-            Icon(Icons.Rounded.Add, contentDescription = "$label Up", tint = TextPrimary)
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(SurfaceDark)
+                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(18.dp))
+                .clickable { onPlus() },
+            contentAlignment = Alignment.Center
+        ) {
+            Text("+", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
-        Text(text = label, color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-        IconButton(onClick = onMinus, modifier = Modifier.padding(bottom = 6.dp)) {
-            Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "$label Down", tint = TextPrimary)
+        Text(label, color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(SurfaceDark)
+                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(18.dp))
+                .clickable { onMinus() },
+            contentAlignment = Alignment.Center
+        ) {
+            Text("-", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
 
 @Composable
-fun MediaTextButton(
-    label: String,
-    modifier: Modifier = Modifier,
-    highlight: Boolean = false,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = modifier
-            .height(50.dp)
-            .clip(RoundedCornerShape(25.dp))
-            .background(if (highlight) SurfaceElevated else SurfaceDark)
-            .border(
-                1.dp,
-                if (highlight) PurpleGlow.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.07f),
-                RoundedCornerShape(25.dp)
-            )
-            .clickable { onClick() },
-        contentAlignment = Alignment.Center
+fun AppsShortcutsSection(onCommand: () -> Unit) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text(text = label, color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        items(listOf("YouTube", "Netflix", "Prime Video", "Spotify", "Play Store")) { app ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(SurfaceDark)
+                    .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(18.dp))
+                    .clickable { onCommand() }
+                    .padding(14.dp),
+            ) {
+                Text(app, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            }
+        }
+    }
+}
+
+@Composable
+fun MoreControlsSection(
+    btRemote: BtRemote,
+    onHaptic: () -> Unit,
+    onOpenBtSettings: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(SurfaceDark)
+                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(18.dp))
+                .clickable {
+                    onHaptic()
+                    btRemote.sendConsumer(BtRemote.CONSUMER_HOME)
+                }
+                .padding(14.dp)
+        ) {
+            Text("Home", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(SurfaceDark)
+                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(18.dp))
+                .clickable {
+                    onHaptic()
+                    btRemote.sendConsumer(BtRemote.CONSUMER_MENU)
+                }
+                .padding(14.dp)
+        ) {
+            Text("Open App Menu", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(SurfaceDark)
+                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(18.dp))
+                .clickable {
+                    onHaptic()
+                    onOpenBtSettings()
+                }
+                .padding(14.dp)
+        ) {
+            Text("Bluetooth Settings", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+        }
+    }
+}
+
+@Composable
+fun BottomNavigationBar(
+    selected: BottomNav,
+    onSelect: (BottomNav) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(SurfaceDark)
+            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(18.dp))
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        val tabs = listOf(
+            BottomNav.REMOTE to "Remote",
+            BottomNav.APPS to "Apps",
+            BottomNav.MORE to "More"
+        )
+        tabs.forEach { (tab, label) ->
+            val selectedTab = selected == tab
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (selectedTab) PurpleDim.copy(alpha = 0.35f) else Color.Transparent)
+                    .clickable { onSelect(tab) }
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(label, color = if (selectedTab) TextPrimary else TextSecondary, fontWeight = FontWeight.SemiBold)
+            }
+        }
     }
 }
 
@@ -1432,45 +1221,36 @@ fun DevicePickerDialog(
     onDisconnect: () -> Unit,
     onOpenSystemBluetooth: () -> Unit
 ) {
-    AlertDialog(
+    androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = SurfaceDark,
         title = {
-            Text("Select Mi TV Device", color = TextPrimary, fontWeight = FontWeight.Bold)
+            Text("Select TV", color = TextPrimary, fontWeight = FontWeight.Bold)
         },
         text = {
-            Column {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 if (pairedDevices.isEmpty()) {
-                    Text(
-                        "No paired Bluetooth devices found. Pair your Mi TV in phone Bluetooth settings first.",
-                        color = TextSecondary,
-                        fontSize = 13.sp
-                    )
+                    Text("No paired TVs found. Pair a TV in system settings.", color = TextSecondary)
                 } else {
-                    LazyColumn(modifier = Modifier.heightIn(max = 260.dp)) {
-                        items(pairedDevices) { dev ->
-                            val isCurrent = connectedDevice?.address == dev.address
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .clickable {
-                                        if (isCurrent) onDisconnect() else onConnect(dev)
-                                    }
-                                    .padding(vertical = 10.dp, horizontal = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Column {
-                                    Text(text = dev.name ?: "Unknown TV", color = TextPrimary, fontWeight = FontWeight.SemiBold)
-                                    Text(text = dev.address, color = TextSecondary, fontSize = 11.sp)
-                                }
-                                Text(
-                                    text = if (isCurrent) "Disconnect" else "Connect",
-                                    color = if (isCurrent) RedPower else PurpleBright,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 13.sp
-                                )
+                    pairedDevices.forEach { device ->
+                        val isConnected = connectedDevice?.address == device.address
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isConnected) PurpleDim.copy(alpha = 0.3f) else Color.Transparent)
+                                .border(1.dp, if (isConnected) PurpleGlow.copy(alpha = 0.5f) else Color.Transparent, RoundedCornerShape(12.dp))
+                                .clickable { onConnect(device) }
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(device.name ?: "Unknown Device", color = TextPrimary, fontWeight = FontWeight.Medium)
+                            if (isConnected) {
+                                Text("Connected", color = GreenConnected, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
@@ -1478,13 +1258,20 @@ fun DevicePickerDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onOpenSystemBluetooth) {
-                Text("Pair New TV", color = PurpleBright)
+            TextButton(onClick = onDismiss) {
+                Text("Close", color = PurpleBright)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Close", color = TextSecondary)
+            Row {
+                if (connectedDevice != null) {
+                    TextButton(onClick = onDisconnect) {
+                        Text("Disconnect", color = RedPower)
+                    }
+                }
+                TextButton(onClick = onOpenSystemBluetooth) {
+                    Text("System Bluetooth", color = TextPrimary)
+                }
             }
         }
     )
