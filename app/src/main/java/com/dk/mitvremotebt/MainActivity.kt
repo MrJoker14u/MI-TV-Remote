@@ -471,7 +471,6 @@ fun TopHeaderBar(
 
             Spacer(modifier = Modifier.width(10.dp))
 
-            // Dedicated Power On/Off Button
             IconButton(
                 onClick = onPowerClick,
                 modifier = Modifier
@@ -1278,7 +1277,7 @@ fun MoreControlsSection(
             }
             OutlinedButton(
                 onClick = {
-                    onHaptic()
+                    haptic()
                     btRemote.sendKey(BtRemote.KEY_TAB)
                 },
                 modifier = Modifier.weight(1f),
@@ -1445,7 +1444,8 @@ fun DevicePickerDialog(
                     Text(
                         "No paired Bluetooth devices found. Pair your Mi TV in phone Bluetooth settings first.",
                         color = TextSecondary,
-513                  )
+                        fontSize = 13.sp
+                    )
                 } else {
                     LazyColumn(modifier = Modifier.heightIn(max = 260.dp)) {
                         items(pairedDevices) { dev ->
