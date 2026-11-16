@@ -471,6 +471,7 @@ fun TopHeaderBar(
 
             Spacer(modifier = Modifier.width(10.dp))
 
+            // Dedicated Power On/Off Button
             IconButton(
                 onClick = onPowerClick,
                 modifier = Modifier
@@ -480,7 +481,7 @@ fun TopHeaderBar(
                     .border(1.dp, RedPower.copy(alpha = 0.45f), CircleShape)
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.Close,
+                    imageVector = Icons.Rounded.PowerSettingsNew,
                     contentDescription = "Power",
                     tint = RedPower,
                     modifier = Modifier.size(20.dp)
@@ -735,11 +736,11 @@ fun RemoteControlSection(
                         .clickable { onVoiceClick() },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = if (isListening) "STOP" else "MIC",
-                        color = if (isListening) RedPower else PurpleBright,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
+                    Icon(
+                        imageVector = Icons.Rounded.Mic,
+                        contentDescription = "Voice Search",
+                        tint = if (isListening) RedPower else PurpleBright,
+                        modifier = Modifier.size(22.dp)
                     )
                 }
             }
@@ -1241,7 +1242,9 @@ fun MoreControlsSection(
         )
 
         Text(
-            text = "First-time setup:\n1. Pair your Mi TV 4A in your phone's Bluetooth settings.\n2. Tap 'Mi TV 4A' at the top and select Connect.",
+            text = "First-time setup:
+1. Pair your Mi TV 4A in your phone's Bluetooth settings.
+2. Tap 'Mi TV 4A' at the top and select Connect.",
             color = TextSecondary,
             fontSize = 13.sp,
             lineHeight = 19.sp
