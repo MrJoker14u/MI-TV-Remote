@@ -480,7 +480,7 @@ fun TopHeaderBar(
                     .border(1.dp, RedPower.copy(alpha = 0.45f), CircleShape)
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.PowerSettingsNew,
+                    imageVector = Icons.Rounded.PowerOff,
                     contentDescription = "Power",
                     tint = RedPower,
                     modifier = Modifier.size(20.dp)
@@ -736,7 +736,7 @@ fun RemoteControlSection(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Mic,
+                        imageVector = Icons.Rounded.SettingsVoice,
                         contentDescription = "Voice Search",
                         tint = if (isListening) RedPower else PurpleBright,
                         modifier = Modifier.size(22.dp)
