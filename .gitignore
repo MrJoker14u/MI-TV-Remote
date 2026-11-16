@@ -3,3 +3,9 @@ build/
 local.properties
 .idea/
 *.iml
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.ap_
+*.aab
